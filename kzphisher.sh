@@ -547,34 +547,35 @@ tunnel_menu() {
 ## Custom Mask URL
 custom_mask() {
     { sleep 0.5; clear; banner_small; echo; }
-    read -n1 -p "${RED}[${WHITE}?${RED}]${ORANGE} Do you want to change Mask URL? ${GREEN}[y/N]${WHITE}: " mask_op
+    read -n1 -p "${RED}[${WHITE}?${RED}]${ORANGE} Vuoi cambiare la Mask URL? ${GREEN}[y/N]${WHITE}: " mask_op
     echo
     if [[ ${mask_op,,} == "y" ]]; then
-        echo -e "\n${RED}[${WHITE}-${RED}]${GREEN} Enter your custom URL below ${CYAN}(Example: https://google.com)"
-        read -e -p "${WHITE} ==> ${ORANGE}" -i "https://" mask_url  # richiede Bash 4+
+        echo -e "\n${RED}[${WHITE}-${RED}]${GREEN} Inserisci la tua custom URL ${CYAN}(esempio: https://google.com)"
+        read -e -p "${WHITE} ==> ${ORANGE}" -i "https://" mask_url
 
-        # Rimuove spazi finali e punto finale, se presenti
-        mask_url=$(echo "$mask_url" | sed 's/[[:space:]]*$//')
+        # Rimuove spazi finali e un eventuale punto finale
+        mask_url="${mask_url%"${mask_url##*[![:space:]]}"}"
         mask_url=${mask_url%.}
 
-        # Controllo valido: deve iniziare con http(s) o www, e non contenere caratteri strani
-        if [[ "$mask_url" =~ ^(https?://|www\.) ]] && \
-           [[ "${mask_url#http*//}" =~ ^[a-zA-Z0-9./:_-]+$ ]]; then
-            mask=$mask_url
-            echo -e "\n${RED}[${WHITE}-${RED}]${CYAN} Using custom Masked Url :${GREEN} $mask"
+        # Validazione: controlla che inizi con http(s):// o www. e che contenga solo caratteri consentiti
+        if [[ "$mask_url" =~ ^(https?://|www\.) ]] && [[ "${mask_url#http*://}" =~ ^[a-zA-Z0-9./:_-]+$ ]]; then
+            mask="$mask_url"
+            echo -e "\n${RED}[${WHITE}-${RED}]${CYAN} Uso la Mask URL personalizzata: ${GREEN}$mask"
         else
-            echo -e "\n${RED}[${WHITE}!${RED}]${ORANGE} Invalid URL type... Using the default one instead."
+            echo -e "\n${RED}[${WHITE}!${RED}]${ORANGE} URL non valida... Uso quella di default."
         fi
+    else
+        echo -e "\n${RED}[${WHITE}-${RED}]${CYAN} Uso la Mask URL di default."
     fi
 }
 
 ## URL Shortner
 ## Check se un sito risponde correttamente
 site_stat() {
-    [[ -n "$1" ]] && curl -s -o /dev/null -w "%{http_code}" "$1example.com"
+    # Controlla lo stato HTTP del sito passato come parametro (ad esempio "http://google.com")
+    [[ -n "$1" ]] && curl -s -o /dev/null -w "%{http_code}" "$1"
 }
 
-## Funzione per accorciare URL usando diversi servizi
 shorten() {
     original_url="$1"
     processed_url=""
@@ -586,14 +587,12 @@ shorten() {
         [chilp.it]="https://chilp.it/api.php?url="
         [is.gd]="https://is.gd/create.php?format=simple&url="
         [tny.im]="https://tny.im/yourls-api.php?action=shorturl&format=simple&url="
-        [clck.ru]="https://clck.ru/--?url="  # redirect, ma valido
+        [clck.ru]="https://clck.ru/--?url="
     )
 
     for name in "${!services[@]}"; do
-        service="${services[$name]}"
-        echo -e "\n[*] Trying: ${service}..."
-
-        short=$(curl --silent --fail --retry 2 --retry-delay 2 "${service}${original_url}")
+        echo "[*] try: $name"
+        short=$(curl --silent --fail --retry 2 --retry-delay 2 "${services[$name]}${original_url}")
 
         if [[ $? -eq 0 && "$short" =~ ^https?:// ]]; then
             processed_url="$short"
@@ -609,6 +608,7 @@ shorten() {
 
 ## URL Custom
 custom_url() {
+    mkdir -p QRCodes
     url=${1#http*//}
 
     if [[ -z "$url" ]]; then
@@ -639,6 +639,16 @@ custom_url() {
     echo -e "\n${RED}[${WHITE}-${RED}]${BLUE} URL 1 : ${GREEN}https://$url"
     echo -e "\n${RED}[${WHITE}-${RED}]${BLUE} URL 2 : ${ORANGE}$processed_url"
     [[ "$processed_url" != *"Unable"* ]] && echo -e "\n${RED}[${WHITE}-${RED}]${BLUE} URL 3 : ${ORANGE}$masked_url"
+
+    # Mostra QR code nel terminale (usando processed_url)
+    echo -e "\n${RED}[${WHITE}-${RED}]${CYAN} QR Code (scan with phone):"
+    qrencode -t ANSIUTF8 "$processed_url"
+
+    # Salva QR code in PNG (usando processed_url)
+    ts=$(date +%Y%m%d_%H%M%S)
+    qrpath="QRCodes/short_$ts.png"
+    qrencode -o "$qrpath" "$processed_url"
+    echo -e "\n${RED}[${WHITE}-${RED}]${GREEN} QR code saved to: ${WHITE}$qrpath"
 }
 
 ## Facebook
